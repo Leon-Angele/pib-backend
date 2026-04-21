@@ -92,9 +92,7 @@ docker-compose logs --tail=50 ros-motors
 
 ## ROS2 Interface
 
-<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
-<strong>TODO:</strong> Aktuell wird nur die rechte Hand angesteuert. Fallunterscheidung in den ROS-Messages notwendig und Anpassung im `Hand_Controller`.
-</div>
+> ![TODO](https://img.shields.io/badge/TODO-red?style=flat-square) **TODO:** Aktuell wird nur die rechte Hand angesteuert. Fallunterscheidung in den ROS-Messages notwendig und Anpassung im `Hand_Controller`.
 
 ### Action Server: `/hand/execute_grip`
 
@@ -149,9 +147,7 @@ Feedback:
 
 ### Verfügbare Griffe (grip_name)
 
-<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
-<strong>TODO:</strong> Aktuell sind hier nur Dummy-Werte enthalten. Wertebereich und Zuordnung der TinkerForge-Motoren (z.B. `-9000`..`9000`) müssen mit der Hardware abgeglichen werden.
-</div>
+> ![TODO](https://img.shields.io/badge/TODO-red?style=flat-square) **TODO:** Aktuell sind hier nur Dummy-Werte enthalten. Wertebereich und Zuordnung der TinkerForge-Motoren (z.B. `-9000`..`9000`) müssen mit der Hardware abgeglichen werden.
 
 Definiert in `hand_config.yaml`:
 
@@ -166,11 +162,10 @@ Definiert in `hand_config.yaml`:
 
 | `SPHAERISCHER_GRIFF` | Spherical Grip | 
 
+
 **Position Range:** `-9000` (gestreckt/offen) bis `9000` (geschlossen)
 
-<div style="border:2px solid #c00; background:#fff0f0; padding:6px; color:#900; display:inline-block;">
-<strong>TODO:</strong> Positionsbereich mit der Hardware abgleichen.
-</div>
+> ![TODO](https://img.shields.io/badge/TODO-red?style=flat-square) **TODO:** Positionsbereich mit der Hardware abgleichen.
 
 
 ---
@@ -202,9 +197,8 @@ grips:
 ```
 
 - **Wichtige Parameter:**
-<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
-<strong>TODO:</strong> Die angegebenen Parameter sind derzeit Platzhalter/Dummy-Werte. Alle Werte (`min_pos`, `max_pos`, `max_speed`, `max_current` etc.) müssen mit der realen Hardware validiert und dokumentiert werden.
-</div>
+
+> ![TODO](https://img.shields.io/badge/TODO-red?style=flat-square) **TODO:** Die angegebenen Parameter sind derzeit Platzhalter/Dummy-Werte. Alle Werte (`min_pos`, `max_pos`, `max_speed`, `max_current` etc.) müssen mit der realen Hardware validiert und dokumentiert werden.
 
 - **motor_name**: Name in `pib_motors.motor.name_to_motors` Dictionary 
 - **min_pos/max_pos**: Position Range (-9000 bis 9000 Tinkerforge units)
@@ -288,9 +282,7 @@ threshold = max_current * 0.7  # Fixer Schwellenwert
 
 **Zukünftig (FFNN):** 
 
-<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
-<strong>TODO:</strong> Für den Start als Regressionsproblem (FFNN) planen. Später prüfen, ob ein Digital Twin / RL-Ansatz sinnvoller ist. Details und Verantwortliche noch klären.
-</div>
+> ![TODO](https://img.shields.io/badge/TODO-red?style=flat-square) **TODO:** Für den Start als Regressionsproblem (FFNN) planen. Später prüfen, ob ein Digital Twin / RL-Ansatz sinnvoller ist. Details und Verantwortliche noch klären.
 
 ```python
 # Predict expected current based on position and velocity
