@@ -1,0 +1,15 @@
+# Goal - Request to execute a predefined grip
+string grip_name
+
+---
+
+# Result - Final outcome of the grip execution
+bool success
+string message
+
+---
+
+# Feedback - Continuous updates during grip execution
+string current_axis
+float32 progress_percent
+int32[] motor_currents

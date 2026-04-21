@@ -13,6 +13,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
         (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
+        (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -26,6 +27,7 @@ setup(
             "motor_control = motors.motor_control:main",
             "motor_current = motors.motor_current:main",
             "relay_control = motors.relay_control:main",
+            "hand_controller = motors.hand_controller:main",
         ],
     },
 )

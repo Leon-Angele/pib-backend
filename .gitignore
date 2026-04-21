@@ -61,3 +61,6 @@ pib_blockly/pib_blockly_server/node_modules/**
 package-lock.json
 /Pipfile
 /Pipfile.lock
+
+#venv
+ros_packages/motors/hand_simulation/.venv 
