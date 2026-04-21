@@ -58,15 +58,7 @@ cd /home/leona/pib-backend
 # Build motors Container (baut datatypes + motors packages)
 docker-compose build ros-motors
 
-# Erwartete Ausgabe:
-# Summary: 2 packages finished [~17s]
-#   datatypes
-#   motors
 ```
-
-**Was wird gebaut:**
-- `datatypes` Package: ExecuteGrip.action wird zu Python/C++ Interfaces kompiliert
-- `motors` Package: hand_controller + hand_core.py werden installiert, hand_config.yaml wird nach share/ kopiert
 
 ### 2. Start Container
 
@@ -100,7 +92,9 @@ docker-compose logs --tail=50 ros-motors
 
 ## ROS2 Interface
 
-TODO: Aktuell wird nur die Rechte Hand angesteuert. Fallunterschiedung in den ROS msg notwenig und anpassung im Hand_Controller. 
+<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
+<strong>TODO:</strong> Aktuell wird nur die rechte Hand angesteuert. Fallunterscheidung in den ROS-Messages notwendig und Anpassung im `Hand_Controller`.
+</div>
 
 ### Action Server: `/hand/execute_grip`
 
@@ -155,8 +149,10 @@ Feedback:
 
 ### Verfügbare Griffe (grip_name)
 
-TODO: Bis dator reine Dummy-Werte. Keine Ahung was die TinkerForge Motoren abbilden für die Werte [-9000,9000
-]
+<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
+<strong>TODO:</strong> Aktuell sind hier nur Dummy-Werte enthalten. Wertebereich und Zuordnung der TinkerForge-Motoren (z.B. `-9000`..`9000`) müssen mit der Hardware abgeglichen werden.
+</div>
+
 Definiert in `hand_config.yaml`:
 
 | Grip Name | Beschreibung | Finger-Positionen |
@@ -167,9 +163,14 @@ Definiert in `hand_config.yaml`:
 | `SCHLUESSELGRIFF` | Key Grip | 
 | `ZYLINDERGRIFF` | Cylinder/Power Grip (alle Finger) |  
 | `HAKENGRIFF` | Hook Grip (ohne Daumen) |
+
 | `SPHAERISCHER_GRIFF` | Spherical Grip | 
 
-**Position Range:** `-9000` (gestreckt/offen) bis `9000` (geschlossen) #TODO abgleichen mit der Hardware
+**Position Range:** `-9000` (gestreckt/offen) bis `9000` (geschlossen)
+
+<div style="border:2px solid #c00; background:#fff0f0; padding:6px; color:#900; display:inline-block;">
+<strong>TODO:</strong> Positionsbereich mit der Hardware abgleichen.
+</div>
 
 
 ---
@@ -200,8 +201,10 @@ grips:
     # ... weitere Finger
 ```
 
-**Wichtige Parameter:**
-TODO: Auch nur Dummy Werte, muss mit Hardware abgegelichen werden. Wie alle Parmater eig.
+- **Wichtige Parameter:**
+<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
+<strong>TODO:</strong> Die angegebenen Parameter sind derzeit Platzhalter/Dummy-Werte. Alle Werte (`min_pos`, `max_pos`, `max_speed`, `max_current` etc.) müssen mit der realen Hardware validiert und dokumentiert werden.
+</div>
 
 - **motor_name**: Name in `pib_motors.motor.name_to_motors` Dictionary 
 - **min_pos/max_pos**: Position Range (-9000 bis 9000 Tinkerforge units)
@@ -285,7 +288,9 @@ threshold = max_current * 0.7  # Fixer Schwellenwert
 
 **Zukünftig (FFNN):** 
 
-TODO: Das wäre für den Start ein Reggresionsproblem , solltem im Verlauf klären ob wir hier mit DigitalTwin mit RL cooleres machen.
+<div style="border:2px solid #c00; background:#fff0f0; padding:8px; color:#900;">
+<strong>TODO:</strong> Für den Start als Regressionsproblem (FFNN) planen. Später prüfen, ob ein Digital Twin / RL-Ansatz sinnvoller ist. Details und Verantwortliche noch klären.
+</div>
 
 ```python
 # Predict expected current based on position and velocity
