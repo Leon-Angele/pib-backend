@@ -1,3 +1,15 @@
+# Projekt Pib_Hand
+
+Die viel wichtigere ReadMe für uns:
+
+- [Hauptdokumentation](ros_packages/motors/config/README_HAND.md)
+
+
+
+
+
+
+
 # Software setup
 
 This script assumes:
