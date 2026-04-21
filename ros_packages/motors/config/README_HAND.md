@@ -2,14 +2,14 @@
 
 ## Übersicht
 
-Der **Hand Controller** ist ein ROS2 Action Server für intelligente Grip-Steuerung mit **Admittance Control** (Nachgiebigkeits-Regelung). Er läuft als vierter Node im `motors` Package und ermöglicht die Ausführung vordefinierter Griffe mit automatischer, weicher Compliance.
+Der **Hand Controller** ist ein ROS2 Action Server für intelligente Grip-Steuerung mit **Admittance Control** (Nachgiebigkeits-Regelung). Er läuft als vierter Node im `motors` Package und ermöglicht die Ausführung vordefinierter Griffe mit automatischer.
 
 **Schlüssel-Features:**
 - ✅ **Grip-basierte Steuerung**: 7 vordefinierte Griffe (OPEN, SPITZGRIFF, DREIPUNKTGRIFF, ...)
 - ✅ **Admittance Control**: Weiche Nachgiebigkeit statt hartem Stopp bei Widerstand
 - ✅ **50Hz Control Loop**: Präzise Trajektorien-Interpolation mit Compliance-Detection
 - ✅ **Action Server**: Async Grip-Ausführung mit Progress-Feedback
-- ✅ **FFNN-Ready**: Vorbereitet für ML-basierte Schwellenwert-Vorhersage
+- ✅ **FFNN-Ready**: Vorbereitet für ML-basierte Schwellenwert-Vorhersage -> Oder zukünfitg RL Trajectory / FFNN
 
 ---
 
@@ -86,7 +86,7 @@ docker-compose logs --tail=50 ros-motors
 
 ### 3. Dev-Modus vs. Production
 
-**Dev-Modus** (Windows, ohne Hardware):
+**Dev-Modus** (DEV, ohne Hardware):
 - In `launch/launch.py` ist `dev=True` gesetzt
 - Hand Controller loggt: `[WARN] Running in DEV mode - motor access may be limited`
 - Keine echten Motorbewegungen, nur Logik-Test
@@ -99,6 +99,8 @@ docker-compose logs --tail=50 ros-motors
 ---
 
 ## ROS2 Interface
+
+TODO: Aktuell wird nur die Rechte Hand angesteuert. Fallunterschiedung in den ROS msg notwenig und anpassung im Hand_Controller. 
 
 ### Action Server: `/hand/execute_grip`
 
@@ -121,23 +123,7 @@ string message
 string current_axis
 float32 progress_percent
 int32[] motor_currents
-```
 
-### Verfügbare Griffe (grip_name)
-
-Definiert in `hand_config.yaml`:
-
-| Grip Name | Beschreibung | Finger-Positionen |
-|-----------|--------------|-------------------|
-| `OPEN` | Hand öffnen (alle Finger gestreckt) | -9000 (stretched) |
-| `SPITZGRIFF` | Pinch Grip (Daumen + Zeigefinger) | Daumen -2000, Zeigefinger -2000 |
-| `DREIPUNKTGRIFF` | Three-point Grip | Daumen -2000, Zeigefinger -2000, Mittelfinger -2000 |
-| `SCHLUESSELGRIFF` | Key Grip | Daumen -3000, Zeigefinger -6000 |
-| `ZYLINDERGRIFF` | Cylinder/Power Grip (alle Finger) | Alle -1000 (closed) |
-| `HAKENGRIFF` | Hook Grip (ohne Daumen) | Finger -1000, Daumen -9000 |
-| `SPHAERISCHER_GRIFF` | Spherical Grip | Alle -3000 (mittel) |
-
-**Position Range:** `-9000` (gestreckt/offen) bis `9000` (geschlossen)
 
 ### Beispiel-Nutzung
 
@@ -166,42 +152,25 @@ Feedback:
     motor_currents: [120, 135, 0, 0, 0, 450]
 ```
 
-**3. Aus Python-Code (ROS2 Client):**
-```python
-import rclpy
-from rclpy.action import ActionClient
-from datatypes.action import ExecuteGrip
 
-class HandClient:
-    def __init__(self):
-        self.node = rclpy.create_node('hand_client')
-        self._action_client = ActionClient(
-            self.node, 
-            ExecuteGrip, 
-            '/hand/execute_grip'
-        )
-    
-    def send_grip(self, grip_name):
-        goal_msg = ExecuteGrip.Goal()
-        goal_msg.grip_name = grip_name
-        
-        self._action_client.wait_for_server()
-        future = self._action_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self.feedback_callback
-        )
-        return future
-    
-    def feedback_callback(self, feedback_msg):
-        feedback = feedback_msg.feedback
-        print(f"Achse: {feedback.current_axis}, "
-              f"Progress: {feedback.progress_percent:.1f}%, "
-              f"Currents: {feedback.motor_currents}")
+### Verfügbare Griffe (grip_name)
 
-# Nutzung:
-client = HandClient()
-future = client.send_grip("SPITZGRIFF")
-```
+TODO: Bis dator reine Dummy-Werte. Keine Ahung was die TinkerForge Motoren abbilden für die Werte [-9000,9000
+]
+Definiert in `hand_config.yaml`:
+
+| Grip Name | Beschreibung | Finger-Positionen |
+|-----------|--------------|-------------------|
+| `OPEN` | Hand öffnen (alle Finger gestreckt) 
+| `SPITZGRIFF` | Pinch Grip (Daumen + Zeigefinger) 
+| `DREIPUNKTGRIFF` | Three-point Grip
+| `SCHLUESSELGRIFF` | Key Grip | 
+| `ZYLINDERGRIFF` | Cylinder/Power Grip (alle Finger) |  
+| `HAKENGRIFF` | Hook Grip (ohne Daumen) |
+| `SPHAERISCHER_GRIFF` | Spherical Grip | 
+
+**Position Range:** `-9000` (gestreckt/offen) bis `9000` (geschlossen) #TODO abgleichen mit der Hardware
+
 
 ---
 
@@ -232,8 +201,9 @@ grips:
 ```
 
 **Wichtige Parameter:**
+TODO: Auch nur Dummy Werte, muss mit Hardware abgegelichen werden. Wie alle Parmater eig.
 
-- **motor_name**: Name in `pib_motors.motor.name_to_motors` Dictionary
+- **motor_name**: Name in `pib_motors.motor.name_to_motors` Dictionary 
 - **min_pos/max_pos**: Position Range (-9000 bis 9000 Tinkerforge units)
 - **max_speed**: Maximale Geschwindigkeit für Trajektorien-Interpolation
 - **max_current**: Schwellenwert für Admittance Control (70% davon wird genutzt)
@@ -304,37 +274,28 @@ if all axes finished:
     return Result(success=True, message="Grip completed")
 ```
 
-### Beispiel-Ablauf: SPITZGRIFF
+## FFNN Integration (Future)
 
-```
-t=0ms:   Goal empfangen: SPITZGRIFF
-         daumen: current=-9000 → target=-2000
-         zeigefinger: current=-9000 → target=-2000
-         
-t=20ms:  [50Hz Tick 1]
-         daumen: q_ref=-9000+16=-8984, current=0mA, q_cmd=-8984
-         zeigefinger: q_ref=-9000+16=-8984, current=0mA, q_cmd=-8984
-         
-t=40ms:  [50Hz Tick 2]
-         daumen: q_ref=-8968, current=0mA, q_cmd=-8968
-         ...
-         
-t=500ms: Daumen berührt Objekt
-         daumen: q_ref=-5000, current=1200mA (>1050mA threshold!)
-         excess = 1200-1050 = 150
-         q_cmd = -5000 - (1.5*150) = -5225  ← weicht zurück!
-         
-t=520ms: Objekt gibt nach
-         daumen: q_ref=-4800, current=800mA (<threshold)
-         q_cmd = -4800  ← normale Bewegung
-         
-t=8000ms: Beide Finger am Ziel
-         daumen: q_ref=-2000 (fertig), q_cmd=-2100 (leicht zurück wegen Objekt)
-         zeigefinger: q_ref=-2000 (fertig), q_cmd=-2000
-         → Result: success=True
+Der Code ist vorbereitet für ML-basierte Schwellenwert-Vorhersage:
+
+**Aktuell (statisch):**
+```python
+threshold = max_current * 0.7  # Fixer Schwellenwert
 ```
 
----
+**Zukünftig (FFNN):** 
+
+TODO: Das wäre für den Start ein Reggresionsproblem , solltem im Verlauf klären ob wir hier mit DigitalTwin mit RL cooleres machen.
+
+```python
+# Predict expected current based on position and velocity
+expected_current = ffnn_model.predict(q_ref, velocity, finger_id)
+threshold = expected_current 
+
+# Only currents above prediction trigger admittance
+excess = max(0, current_measured - threshold)
+```
+
 
 ## Integration mit bestehenden Systemen
 
@@ -349,7 +310,10 @@ t=8000ms: Beide Finger am Ziel
 
 `motor_current` published weiterhin alle Motorströme auf `/motor_current` Topic (4Hz). Das ist **unabhängig** vom `hand_controller`, der seine eigenen Current-Messungen macht (50Hz).
 
+
 ### Mit cerebra/rosbridge
+
+TODO: Das ist spekuliert.
 
 Aus der Web-UI kann der Hand Controller über rosbridge angesprochen werden:
 
@@ -379,39 +343,9 @@ goal.send();
 
 ---
 
+
+
 ## Troubleshooting
-
-### Container startet nicht
-
-```bash
-# Check Logs
-docker-compose logs ros-motors
-
-# Häufige Fehler:
-# - YAML Syntax Error in hand_config.yaml
-# - Missing datatypes package (ExecuteGrip.action nicht gebaut)
-```
-
-### Hand Controller startet nicht
-
-```bash
-# Check ob ExecuteGrip.action existiert
-docker exec -it multirepo-ros-motors-1 bash -c \
-  "cd /app/ros2_ws && source install/setup.bash && \
-   ros2 interface show datatypes/action/ExecuteGrip"
-
-# Sollte Action Definition anzeigen
-```
-
-### Grip wird nicht accepted
-
-```bash
-# Check verfügbare Griffe
-docker exec -it multirepo-ros-motors-1 bash -c \
-  "cd /app/ros2_ws && cat install/motors/share/motors/config/hand_config.yaml | grep -A 1 'grips:'"
-
-# Grip Name muss exakt matchen (case-sensitive!)
-```
 
 ### Motor Currents sind -1
 
@@ -431,31 +365,7 @@ Grip ist **completed** wenn `q_ref` am Ziel ist, auch wenn `q_cmd` durch Admitta
 
 ---
 
-## FFNN Integration (Future)
 
-Der Code ist vorbereitet für ML-basierte Schwellenwert-Vorhersage:
-
-**Aktuell (statisch):**
-```python
-threshold = max_current * 0.7  # Fixer Schwellenwert
-```
-
-**Zukünftig (FFNN):**
-```python
-# Predict expected current based on position and velocity
-expected_current = ffnn_model.predict(q_ref, velocity, finger_id)
-threshold = expected_current + safety_margin
-
-# Only currents above prediction trigger admittance
-excess = max(0, current_measured - threshold)
-```
-
-**Vorteile:**
-- Dynamische Schwellenwerte je nach Bewegungsphase
-- Weniger False-Positives (Admittance bei normaler Bewegung)
-- Bessere Objekterkennung (unerwarteter Strom = Kontakt)
-
----
 
 ## Zusammenfassung
 
@@ -476,14 +386,8 @@ excess = max(0, current_measured - threshold)
 - Trajektorie läuft weiter (q_ref → Ziel)
 - Automatische Fortsetzung wenn Widerstand nachlässt
 
-**Vorteile:**
-- ✅ Sichere, schonende Griffe
-- ✅ Robustheit gegen unerwartete Objekte
-- ✅ Keine "stuck" States
-- ✅ Einfache High-Level API (nur Grip-Name nötig)
 
 ---
 
 **Autoren:** PIB Robotics Team  
 **Letzte Aktualisierung:** 2026-04-22  
-**Version:** 1.0 (Admittance Control)
