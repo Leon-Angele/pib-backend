@@ -4,101 +4,101 @@
 axes:
   daumen:
     motor_name: "thumb_right_stretch"
-    min_pos: -9000
+    min_pos: 0
     max_pos: 9000
-    max_speed: 800
+    max_speed: 2000  # Deutlich schneller (vorher 800)
     max_current: 1500
     
   zeigefinger:
     motor_name: "index_right_stretch"
-    min_pos: -9000
+    min_pos: 0
     max_pos: 9000
-    max_speed: 800
+    max_speed: 2000
     max_current: 1500
     
   mittelfinger:
     motor_name: "middle_right_stretch"
-    min_pos: -9000
+    min_pos: 0
     max_pos: 9000
-    max_speed: 800
+    max_speed: 2000
     max_current: 1500
     
   ringfinger:
     motor_name: "ring_right_stretch"
-    min_pos: -9000
+    min_pos: 0
     max_pos: 9000
-    max_speed: 800
+    max_speed: 2000
     max_current: 1500
     
   kleinfinger:
     motor_name: "pinky_right_stretch"
-    min_pos: -9000
+    min_pos: 0
     max_pos: 9000
-    max_speed: 800
+    max_speed: 2000
     max_current: 1500
     
   daumen_rotieren:
     motor_name: "thumb_right_opposition"
-    min_pos: -9000
+    min_pos: 0
     max_pos: 9000
-    max_speed: 800
+    max_speed: 2000
     max_current: 1500
 
-# Grip definitions - positions in Tinkerforge units (-9000 to 9000)
-# -9000 = stretched/open, positive values = closed
+# Grip definitions - positions in Tinkerforge units (0 bis 9000)
+# 0 = offen, positive Werte = geschlossen
 grips:
   OPEN:
-    daumen: -9000
-    zeigefinger: -9000
-    mittelfinger: -9000
-    ringfinger: -9000
-    kleinfinger: -9000
-    daumen_rotieren: -9000
+    daumen: 0
+    zeigefinger: 0
+    mittelfinger: 0
+    ringfinger: 0
+    kleinfinger: 0
+    daumen_rotieren: 0
     
-  SPITZGRIFF:  # Pinch grip - thumb and index
-    daumen: -2000
-    zeigefinger: -2000
-    mittelfinger: -9000
-    ringfinger: -9000
-    kleinfinger: -9000
-    daumen_rotieren: -4500
+  SPITZGRIFF:  # Komplett geschlossen (alle Gelenke auf Anschlag)
+    daumen: 9000
+    zeigefinger: 9000
+    mittelfinger: 9000
+    ringfinger: 9000
+    kleinfinger: 9000
+    daumen_rotieren: 9000
     
-  DREIPUNKTGRIFF:  # Three-point grip
-    daumen: -2000
-    zeigefinger: -2000
-    mittelfinger: -2000
-    ringfinger: -9000
-    kleinfinger: -9000
-    daumen_rotieren: -4500
+  DREIPUNKTGRIFF:
+    daumen: 7000
+    zeigefinger: 7000
+    mittelfinger: 7000
+    ringfinger: 0
+    kleinfinger: 0
+    daumen_rotieren: 4500
     
-  SCHLUESSELGRIFF:  # Key grip
-    daumen: -3000
-    zeigefinger: -6000
-    mittelfinger: -9000
-    ringfinger: -9000
-    kleinfinger: -9000
-    daumen_rotieren: -3000
+  SCHLUESSELGRIFF:
+    daumen: 6000
+    zeigefinger: 3000
+    mittelfinger: 0
+    ringfinger: 0
+    kleinfinger: 0
+    daumen_rotieren: 6000
     
-  ZYLINDERGRIFF:  # Cylinder/power grip
-    daumen: -1000
-    zeigefinger: -1000
-    mittelfinger: -1000
-    ringfinger: -1000
-    kleinfinger: -1000
-    daumen_rotieren: -6000
+  ZYLINDERGRIFF:
+    daumen: 8000
+    zeigefinger: 8000
+    mittelfinger: 8000
+    ringfinger: 8000
+    kleinfinger: 8000
+    daumen_rotieren: 3000
     
-  HAKENGRIFF:  # Hook grip
-    daumen: -9000
-    zeigefinger: -1000
-    mittelfinger: -1000
-    ringfinger: -1000
-    kleinfinger: -1000
-    daumen_rotieren: -9000
+  HAKENGRIFF:
+    daumen: 0
+    zeigefinger: 8000
+    mittelfinger: 8000
+    ringfinger: 8000
+    kleinfinger: 8000
+    daumen_rotieren: 0
     
-  SPHAERISCHER_GRIFF:  # Spherical grip
-    daumen: -3000
-    zeigefinger: -3000
-    mittelfinger: -3000
-    ringfinger: -3000
-    kleinfinger: -3000
-    daumen_rotieren: -5000
+  SPHAERISCHER_GRIFF:
+    daumen: 6000
+    zeigefinger: 6000
+    mittelfinger: 6000
+    ringfinger: 6000
+    kleinfinger: 6000
+    daumen_rotieren: 4000

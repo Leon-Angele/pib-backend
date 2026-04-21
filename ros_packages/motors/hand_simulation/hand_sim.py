@@ -2,8 +2,8 @@
 """
 MuJoCo Hand Simulation - Refactored for Admittance Control.
 
-Kombiniert die neue Admittanz-Regelung (50Hz) mit den korrekten 
-MuJoCo-Mappings (Kopplungen, fixierte Arme, Kinematik-Override).
+Fix: Deaktivierte Dynamik & Viewer Lock, damit MuJoCo die 
+Kinematik-Befehle nicht durch Schwerkraft/Federn überschreibt.
 """
 from __future__ import annotations
 
@@ -37,19 +37,16 @@ from motors.hand_core import (
 # KONSTANTEN & MAPPING
 # ============================================================================
 
-COMPLIANCE_THRESHOLD_FACTOR = 0.7  # Schwelle für Admittanz
+COMPLIANCE_THRESHOLD_FACTOR = 0.7
 
-# Mapping: hand_config.yaml axis name → MuJoCo joint name
 AXIS_TO_MUJOCO_JOINTS = {
     "daumen": "thumb_right_distal",
     "zeigefinger": "index_right_distal",
     "mittelfinger": "middle_right_distal",
     "ringfinger": "ring_right_distal",
     "kleinfinger": "pinky_right_distal",
-    # daumen_rotieren hat kein separates Joint in MuJoCo
 }
 
-# Proximale Gelenke folgen 1:1 den distalen
 PROXIMAL_COUPLINGS = {
     "thumb_right_distal": "thumb_right_proximal",
     "index_right_distal": "index_right_proximal",
@@ -58,7 +55,6 @@ PROXIMAL_COUPLINGS = {
     "pinky_right_distal": "pinky_right_proximal",
 }
 
-# Fixierte Arm-Pose
 ELBOW_RIGHT_FIXED_RAD = float(np.deg2rad(90.0))
 FOREARM_RIGHT_FIXED_RAD = float(np.deg2rad(180.0))
 
@@ -67,12 +63,12 @@ class SimAxisState:
     config: AxisConfig
     start_position: float
     target_position: float
-    reference_position: float  # q_ref (ideal)
-    current_cmd_pos: float     # q_cmd (nach Admittanz)
+    reference_position: float  
+    current_cmd_pos: float     
     is_finished: bool
 
 # ============================================================================
-# GRIP SIMULATOR (Mit Admittanz-Logik)
+# GRIP SIMULATOR
 # ============================================================================
 
 class GripSimulator:
@@ -81,7 +77,6 @@ class GripSimulator:
         self.grips = grips
         self.grip_state = GripState.IDLE
         self.axis_states: Dict[str, SimAxisState] = {}
-        
         self.current_positions: Dict[str, float] = {
             name: 0.0 for name in axes_config.keys()
         }
@@ -121,28 +116,23 @@ class GripSimulator:
             
             all_done = False
             
-            # 1. Ideale Trajektorie berechnen
+            # 1. Ideale Trajektorie
             state.reference_position = calculate_next_reference(
                 state.reference_position,
                 state.target_position,
                 state.config.max_speed
             )
             
-            # 2. In der reinen Simulation gibt es keinen echten Widerstand
+            # 2. Admittanz anwenden (ohne echten Widerstand in der Sim)
             meas_current = 0.0
-            
-            # 3. Admittanz anwenden
             threshold = state.config.max_current * COMPLIANCE_THRESHOLD_FACTOR
             state.current_cmd_pos = apply_admittance_logic(
-                state.reference_position,
-                meas_current,
-                threshold
+                state.reference_position, meas_current, threshold
             )
             
-            # 4. Aktuelle Position speichern
+            # 3. Position aktualisieren
             self.current_positions[name] = state.current_cmd_pos
             
-            # 5. Abschlussprüfung
             if is_target_reached(state.reference_position, state.target_position):
                 state.is_finished = True
                 print(f"   ✓ {name} fertig")
@@ -173,8 +163,7 @@ def load_mujoco_model() -> tuple[mujoco.MjModel, mujoco.MjData]:
     if not model_path.exists():
         raise FileNotFoundError(f"URDF nicht gefunden: {model_path}")
     
-    urdf_text = model_path.read_text(encoding="utf-8")
-    urdf_text = urdf_text.replace("package://pib_head_module/meshes/", "")
+    urdf_text = model_path.read_text(encoding="utf-8").replace("package://pib_head_module/meshes/", "")
     
     with NamedTemporaryFile(mode="w", suffix=".urdf", dir=model_path.parent, delete=False, encoding="utf-8") as tmp:
         tmp.write(urdf_text)
@@ -182,6 +171,7 @@ def load_mujoco_model() -> tuple[mujoco.MjModel, mujoco.MjData]:
     
     try:
         model = mujoco.MjModel.from_xml_path(str(temp_model_path))
+        
         data = mujoco.MjData(model)
     finally:
         temp_model_path.unlink(missing_ok=True)
@@ -189,8 +179,6 @@ def load_mujoco_model() -> tuple[mujoco.MjModel, mujoco.MjData]:
     return model, data
 
 def setup_joint_mappings(model: mujoco.MjModel) -> tuple[list[dict], list[dict], dict[int, float]]:
-    """Stellt die originalen Abhängigkeiten und Fixierungen wieder her."""
-    # Controlled distale Finger-Gelenke
     joint_infos: list[dict] = []
     for joint_name in ["thumb_right_distal", "index_right_distal", "middle_right_distal", 
                        "ring_right_distal", "pinky_right_distal"]:
@@ -198,12 +186,9 @@ def setup_joint_mappings(model: mujoco.MjModel) -> tuple[list[dict], list[dict],
         if joint_id >= 0:
             joint_infos.append({
                 "name": joint_name,
-                "qpos_adr": int(model.jnt_qposadr[joint_id]),
-                "low": float(model.jnt_range[joint_id][0]),
-                "high": float(model.jnt_range[joint_id][1]),
+                "qpos_adr": int(model.jnt_qposadr[joint_id])
             })
     
-    # Proximale Couplings
     coupled_infos: list[dict] = []
     for distal_name, proximal_name in PROXIMAL_COUPLINGS.items():
         distal_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, distal_name)
@@ -211,12 +196,9 @@ def setup_joint_mappings(model: mujoco.MjModel) -> tuple[list[dict], list[dict],
         if distal_id >= 0 and prox_id >= 0:
             coupled_infos.append({
                 "distal_qpos_adr": int(model.jnt_qposadr[distal_id]),
-                "prox_qpos_adr": int(model.jnt_qposadr[prox_id]),
-                "prox_low": float(model.jnt_range[prox_id][0]),
-                "prox_high": float(model.jnt_range[prox_id][1]),
+                "prox_qpos_adr": int(model.jnt_qposadr[prox_id])
             })
     
-    # Fixiere Arm-Gelenke
     locked_targets: dict[int, float] = {}
     for joint_name in ["elbow_right", "forearm_right"]:
         joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, joint_name)
@@ -241,9 +223,7 @@ def main():
         'k': 'SCHLUESSELGRIFF', 'z': 'ZYLINDERGRIFF', 
         'h': 'HAKENGRIFF', 'p': 'SPHAERISCHER_GRIFF',
     }
-
     last_pressed_time = {}
-    debounce_time = 0.3
 
     def key_callback(keycode):
         try:
@@ -253,9 +233,8 @@ def main():
         
         if key_char in key_to_grip:
             current_time = time.time()
-            if key_char in last_pressed_time and (current_time - last_pressed_time[key_char] < debounce_time):
+            if key_char in last_pressed_time and (current_time - last_pressed_time[key_char] < 0.3):
                 return
-            
             grip_name = key_to_grip[key_char]
             if grip_name in grips:
                 sim.start_grip(grip_name)
@@ -276,33 +255,31 @@ def main():
                 if sim.grip_state == GripState.COMPLETED:
                     sim.reset()
             
-            # Positionen auf MuJoCo anwenden
             mujoco_positions = sim.get_mujoco_positions()
             
-            # 1. Distale Gelenke (inklusive Glättung)
-            for info in joint_infos:
-                joint_name = str(info["name"])
-                adr = int(info["qpos_adr"])
-                if joint_name in mujoco_positions:
-                    target = np.clip(mujoco_positions[joint_name], info["low"], info["high"])
-                    current = float(data.qpos[adr])
-                    data.qpos[adr] = current + smoothing * (target - current)
-            
-            # 2. Proximale Gelenke folgen distalen
-            for info in coupled_infos:
-                distal_value = float(data.qpos[int(info["distal_qpos_adr"])])
-                data.qpos[int(info["prox_qpos_adr"])] = np.clip(
-                    distal_value, info["prox_low"], info["prox_high"]
-                )
-            
-            # 3. Fixierte Gelenke (Ellbogen, Unterarm)
-            for adr, value in locked_targets.items():
-                data.qpos[adr] = value
+            # WICHTIG: Den Viewer sperren, während wir Positionen überschreiben!
+            with viewer.lock():
+                # 1. Distale Gelenke (ohne np.clip)
+                for info in joint_infos:
+                    joint_name = str(info["name"])
+                    adr = int(info["qpos_adr"])
+                    if joint_name in mujoco_positions:
+                        target = mujoco_positions[joint_name]
+                        current = float(data.qpos[adr])
+                        data.qpos[adr] = current + smoothing * (target - current)
                 
-            # WICHTIG: Kinematik-Override (verhindert, dass Schwerkraft die Hand öffnet)
-            data.qvel[:] = 0.0
-            
-            mujoco.mj_forward(model, data)
+                # 2. Proximale Gelenke koppeln
+                for info in coupled_infos:
+                    distal_value = float(data.qpos[int(info["distal_qpos_adr"])])
+                    data.qpos[int(info["prox_qpos_adr"])] = distal_value
+                
+                # 3. Fixierte Gelenke (Arm)
+                for adr, value in locked_targets.items():
+                    data.qpos[adr] = value
+                    
+                data.qvel[:] = 0.0
+                mujoco.mj_forward(model, data)
+                
             viewer.sync()
             time.sleep(model.opt.timestep)
 
