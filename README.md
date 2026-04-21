@@ -3,12 +3,7 @@
 Die viel wichtigere ReadMe für uns:
 
 - [Hauptdokumentation](ros_packages/motors/config/README_HAND.md)
-
-
-
-
-
-
+<br><br><br><br><br><br><br><br>
 
 # Software setup
 
