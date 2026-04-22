@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
+import asyncio
 
 import rclpy
 from ament_index_python.packages import get_package_share_directory
@@ -187,7 +188,7 @@ class HandController(Node):
         self.get_logger().info("Grip cancelled by client")
         return CancelResponse.ACCEPT
 
-    def _execute_grip_callback(self, goal_handle):
+    async def _execute_grip_callback(self, goal_handle):
         """
         Main action execution callback.
         
@@ -236,7 +237,7 @@ class HandController(Node):
         self.grip_state = GripState.MOVING
         
         # Wait for completion (control loop will update state)
-        rate = self.create_rate(10)  # Check at 10Hz
+        # Use non-blocking asyncio sleep so the node timers continue running
         while rclpy.ok() and self.grip_state == GripState.MOVING:
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
@@ -248,8 +249,8 @@ class HandController(Node):
                 self.axis_states = {}
                 self.current_goal_handle = None
                 return result
-            
-            rclpy.spin_once(self, timeout_sec=0.1)
+
+            await asyncio.sleep(0.1)
         
         # Return result
         result = ExecuteGrip.Result()
@@ -294,12 +295,21 @@ class HandController(Node):
         motor_currents = []
         
         for axis_name, state in self.axis_states.items():
+            # Always try to publish a real motor current for feedback, even if finished
+            try:
+                measured_current = state.motor.get_current() if not self.dev_mode else 0
+            except Exception as e:
+                self.get_logger().warn(f"Failed to read current for {axis_name}: {e}")
+                measured_current = 0
+
+            motor_currents.append(measured_current)
+
             if state.is_finished:
-                motor_currents.append(0)
+                # finished axis: no further control updates
                 continue
-            
+
             all_done = False
-            
+
             # 1. Update q_ref (ideal trajectory step)
             state.reference_position = calculate_next_reference(
                 state.reference_position,
@@ -307,20 +317,14 @@ class HandController(Node):
                 state.config.max_speed,
             )
             
-            # 2. Measure real current
-            try:
-                measured_current = state.motor.get_current() if not self.dev_mode else 0
-            except Exception as e:
-                self.get_logger().warn(f"Failed to read current for {axis_name}: {e}")
-                measured_current = 0
-            
-            motor_currents.append(measured_current)
+            # 2. Measured current was read above and stored in `measured_current`
             
             # 3. Apply admittance (calculate q_cmd)
             # HERE the FFNN will later dynamically set the threshold!
             static_threshold = state.config.max_current * COMPLIANCE_THRESHOLD
             state.current_cmd_pos = apply_admittance_logic(
                 state.reference_position,
+                state.target_position,
                 measured_current,
                 static_threshold,
             )

@@ -127,7 +127,7 @@ class GripSimulator:
             meas_current = 0.0
             threshold = state.config.max_current * COMPLIANCE_THRESHOLD_FACTOR
             state.current_cmd_pos = apply_admittance_logic(
-                state.reference_position, meas_current, threshold
+                state.reference_position, state.target_position, meas_current, threshold
             )
             
             # 3. Position aktualisieren
