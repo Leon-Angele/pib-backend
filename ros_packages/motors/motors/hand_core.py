@@ -135,7 +135,7 @@ def calculate_next_reference(current: float, target: float, max_speed: int) -> f
     return current + (step if distance > 0 else -step)
 
 
-def apply_admittance_logic(q_ref: float, current_measured: float, current_threshold: float) -> float:
+def apply_admittance_logic(q_ref: float, q_target: float, current_measured: float, current_threshold: float) -> float:
     """
     Calculate commanded position (q_cmd) based on current measurement.
     
@@ -151,8 +151,13 @@ def apply_admittance_logic(q_ref: float, current_measured: float, current_thresh
         Commanded position q_cmd (Tinkerforge units)
     """
     excess_current = max(0.0, current_measured - current_threshold)
-    # When excess current exists, q_cmd deviates back from q_ref
-    return q_ref - (ADMITTANCE_GAIN * excess_current)
+    movement_direction = np.sign(q_target - q_ref)
+    if movement_direction == 0 or excess_current == 0.0:
+        return q_ref
+
+    # When excess current exists, q_cmd deviates back opposite to movement direction
+    # i.e. back off towards the start position to reduce force
+    return q_ref - (ADMITTANCE_GAIN * excess_current * movement_direction)
 
 
 def is_target_reached(current: float, target: float, tolerance: int = POSITION_TOLERANCE) -> bool:

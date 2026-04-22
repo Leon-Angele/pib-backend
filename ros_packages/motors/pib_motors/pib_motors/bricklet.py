@@ -91,3 +91,12 @@ def connected_enumerate(
     elif enumeration_type == IPConnection.ENUMERATION_TYPE_DISCONNECTED:
         connected_bricklets.discard(uid)
         logging.info(f"Servo Bricklet {uid} is disconnected.")
+
+
+# Register enumeration callback and trigger enumeration so connected devices are discovered
+ipcon.register_callback(IPConnection.CALLBACK_ENUMERATE, connected_enumerate)
+try:
+    ipcon.enumerate()
+except Exception:
+    # ignore enumerate errors here; connection state will be logged via callback
+    pass
