@@ -13,6 +13,76 @@ Der **Hand Controller** ist ein ROS2 Action Server für intelligente Grip-Steuer
 
 ---
 
+## Hardware-Konfiguration (Bricklet UIDs)
+
+### Bricklet-UID Zuordnung
+
+Die Motor-zu-Bricklet-Zuordnung (Bricklet-Nummer + Pin) ist bereits in der PIB-API-Datenbank definiert. **Fehlend sind die UIDs der physischen Bricklets.**
+
+**Schritte zur UID-Konfiguration:**
+
+1. **UIDs ermitteln** :
+
+Steht Physich drauf ???
+
+2. **UIDs in PIB-API eintragen** (für jedes Bricklet):
+```bash
+# Beispiel: Bricklet 1 hat physische UID "XYZ"
+curl -X PUT http://localhost:5000/bricklet/1 -H "Content-Type: application/json" -d '{"uid":"XYZ"}'
+curl -X PUT http://localhost:5000/bricklet/2 -H "Content-Type: application/json" -d '{"uid":"ABC"}'
+curl -X PUT http://localhost:5000/bricklet/3 -H "Content-Type: application/json" -d '{"uid":"DEF"}'
+curl -X PUT http://localhost:5000/bricklet/4 -H "Content-Type: application/json" -d '{"uid":"GHI"}'
+```
+
+3. **Container neu starten**:
+```bash
+docker-compose restart ros-motors
+```
+
+### Motor → Bricklet Zuordnung
+
+**Hand-Motoren (für Hand Controller relevant):**
+
+| Motor Name | Bricklet-Nr. | Pin | Beschreibung |
+|------------|--------------|-----|--------------|
+| `thumb_right_opposition` | 1 | 0 | Daumen rechts Opposition |
+| `thumb_right_stretch` | 1 | 1 | Daumen rechts Streckung |
+| `index_right_stretch` | 1 | 2 | Zeigefinger rechts |
+| `middle_right_stretch` | 1 | 3 | Mittelfinger rechts |
+| `ring_right_stretch` | 1 | 4 | Ringfinger rechts |
+| `pinky_right_stretch` | 1 | 5 | Kleinfinger rechts |
+| `thumb_left_opposition` | 3 | 0 | Daumen links Opposition |
+| `thumb_left_stretch` | 3 | 1 | Daumen links Streckung |
+| `index_left_stretch` | 3 | 2 | Zeigefinger links |
+| `middle_left_stretch` | 3 | 3 | Mittelfinger links |
+| `ring_left_stretch` | 3 | 4 | Ringfinger links |
+| `pinky_left_stretch` | 3 | 5 | Kleinfinger links |
+
+**Weitere Motoren (Arme, Schultern, Kopf):**
+
+| Motor Name | Bricklet-Nr. | Pin | Beschreibung |
+|------------|--------------|-----|--------------|
+| `wrist_right` | 1 | 6 | Handgelenk rechts |
+| `lower_arm_right_rotation` | 1 | 7 | Unterarm rechts Rotation |
+| `elbow_right` | 1 | 8 | Ellbogen rechts |
+| `upper_arm_right_rotation` | 1 | 9 | Oberarm rechts Rotation |
+| `shoulder_horizontal_right` | 2 | 0 | Schulter rechts horizontal |
+| `shoulder_vertical_right` | 2 | 1 | Schulter rechts vertikal |
+| `turn_head_motor` | 2 | 4 | Kopf drehen |
+| `tilt_forward_motor` | 2 | 5 | Kopf neigen |
+| `shoulder_horizontal_left` | 2 | 8 | Schulter links horizontal |
+| `shoulder_vertical_left` | 2 | 9 | Schulter links vertikal |
+| `wrist_left` | 3 | 6 | Handgelenk links |
+| `lower_arm_left_rotation` | 3 | 7 | Unterarm links Rotation |
+| `elbow_left` | 3 | 8 | Ellbogen links |
+| `upper_arm_left_rotation` | 3 | 9 | Oberarm links Rotation |
+
+**Bricklet 4:** Solid State Relay (Relais für Motorstromversorgung)
+
+> **Hinweis:** Die Bricklet-Nummern sind logische IDs in der Software. Die UIDs sind physische IDs auf den Hardware-Bricklets (aufgedruckt oder per Enumerate ermittelbar). Du musst zuordnen: "Welches physische Bricklet (UID) soll welche logische Nummer haben?"
+
+---
+
 ## Architektur
 
 ### ROS2 Nodes
