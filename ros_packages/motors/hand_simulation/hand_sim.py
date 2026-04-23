@@ -45,6 +45,7 @@ AXIS_TO_MUJOCO_JOINTS = {
     "mittelfinger": "middle_right_distal",
     "ringfinger": "ring_right_distal",
     "kleinfinger": "pinky_right_distal",
+    "handgelenk": "wrist_right",
 }
 
 PROXIMAL_COUPLINGS = {
@@ -181,7 +182,7 @@ def load_mujoco_model() -> tuple[mujoco.MjModel, mujoco.MjData]:
 def setup_joint_mappings(model: mujoco.MjModel) -> tuple[list[dict], list[dict], dict[int, float]]:
     joint_infos: list[dict] = []
     for joint_name in ["thumb_right_distal", "index_right_distal", "middle_right_distal", 
-                       "ring_right_distal", "pinky_right_distal"]:
+                       "ring_right_distal", "pinky_right_distal", "wrist_right"]:
         joint_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, joint_name)
         if joint_id >= 0:
             joint_infos.append({
@@ -219,9 +220,7 @@ def main():
     joint_infos, coupled_infos, locked_targets = setup_joint_mappings(model)
 
     key_to_grip = {
-        'o': 'OPEN', 's': 'SPITZGRIFF', 'd': 'DREIPUNKTGRIFF',
-        'k': 'SCHLUESSELGRIFF', 'z': 'ZYLINDERGRIFF', 
-        'h': 'HAKENGRIFF', 'p': 'SPHAERISCHER_GRIFF',
+        '1': 'OPEN', '2': 'CYLINDER', '3': 'DROP'
     }
     last_pressed_time = {}
 
@@ -245,7 +244,7 @@ def main():
     smoothing = 0.3
 
     with mujoco.viewer.launch_passive(model, data, key_callback=key_callback) as viewer:
-        print("🚀 Viewer gestartet - Tasten drücken zum Steuern (o, s, d, k, z, h, p)\n")
+        print("🚀 Viewer gestartet - Tasten drücken zum Steuern (1, 2, 3)\n")
         
         while viewer.is_running():
             current_time = time.time()
