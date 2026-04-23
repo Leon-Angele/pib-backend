@@ -56,7 +56,7 @@ Bei jedem 50Hz Tick:
 cd /home/leona/pib-backend
 
 # Build motors Container (baut datatypes + motors packages)
-docker-compose build ros-motors
+docker compose build ros-motors
 
 ```
 
@@ -64,10 +64,10 @@ docker-compose build ros-motors
 
 ```bash
 # Starten (automatisch alle 4 Nodes)
-docker-compose up -d ros-motors
+docker compose up -d ros-motors
 
 # Logs prüfen
-docker-compose logs --tail=50 ros-motors
+docker compose logs --tail=50 ros-motors
 
 # Erwartete Ausgabe:
 # [motor_control-1] ... Now Running MOTOR_CONTROL

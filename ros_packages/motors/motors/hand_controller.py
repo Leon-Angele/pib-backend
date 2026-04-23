@@ -350,6 +350,13 @@ class HandController(Node):
         if self.current_goal_handle is not None:
             self.current_goal_handle.publish_feedback(feedback)
         
+        js_msg = JointState()
+        js_msg.header.stamp = self.get_clock().now().to_msg()
+        for axis_name, state in self.axis_states.items():
+            js_msg.name.append(state.config.motor_name)  # z.B. "index_right_stretch"
+            js_msg.position.append(float(state.current_cmd_pos))
+        self.joint_state_pub.publish(js_msg)
+
         # Check if all axes finished
         if all_done:
             self.grip_state = GripState.COMPLETED

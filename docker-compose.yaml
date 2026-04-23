@@ -108,7 +108,7 @@ services:
       - pib-network
     environment:
       - DISPLAY=:0.0
-    restart: no
+    restart: "no"
 
   ros-voice-assistant:
     image: ros_voice_assistant
