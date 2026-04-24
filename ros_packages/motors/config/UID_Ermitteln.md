@@ -81,5 +81,4 @@ sqlite3 pib_api/flask/pibdata.db \
 ```
 
  siehe auch:
-```md
 [Motor Pinout Dokumentation](https://pib-rocks.atlassian.net/wiki/spaces/kb/pages/206602264/Motor+pinout)
