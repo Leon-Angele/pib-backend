@@ -78,6 +78,7 @@ sqlite3 pib_api/flask/pibdata.db \
  JOIN brickletPin bp ON bp.motor_id = m.id
  JOIN bricklet b ON b.id = bp.bricklet_id
  ORDER BY m.name;"
+```
 
  siehe auch:
 ```md
