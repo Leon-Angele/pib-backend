@@ -69,3 +69,16 @@ sehen — das bestätigt, dass `pib_motors/pib_motors/bricklet.py` die UID verwe
 
 
 
+7) Die DB auslesen in denen Brickletx und Pinx der jeweiligen Motoren hinterlegt ist 
+
+```bash
+sqlite3 pib_api/flask/pibdata.db \
+"SELECT m.name, b.bricklet_number, b.uid, bp.pin
+ FROM motor m
+ JOIN brickletPin bp ON bp.motor_id = m.id
+ JOIN bricklet b ON b.id = bp.bricklet_id
+ ORDER BY m.name;"
+
+ siehe auch:
+```md
+[Motor Pinout Dokumentation](https://pib-rocks.atlassian.net/wiki/spaces/kb/pages/206602264/Motor+pinout)
