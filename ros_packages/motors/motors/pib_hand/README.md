@@ -13,6 +13,58 @@ Der **Hand Controller** ist ein ROS2 Action Server für intelligente Grip-Steuer
 
 ---
 
+## Modulstruktur
+
+Der Hand Controller ist als modulares `pib_hand` Package organisiert für bessere Wartbarkeit und Testbarkeit:
+
+```
+motors/pib_hand/
+├── __init__.py           # Public API exports
+├── config.py             # Configuration loading & validation
+├── admittance.py         # Core admittance control algorithms
+├── hardware.py           # Tinkerforge motor access & unit conversion
+├── controller.py         # ROS2 Action Server node
+├── simulation/           # Standalone MuJoCo testbed
+│   ├── hand_sim.py       # Simulation main entry point
+│   └── pib_upper_body/   # URDF models
+└── README.md             # This file
+```
+
+### Module Responsibilities
+
+| Module | Verantwortung | ROS2? | Testbar standalone? |
+|--------|---------------|-------|---------------------|
+| `config.py` | YAML-Parsing, Grip-Definitionen, Validation | ❌ | ✅ |
+| `admittance.py` | Trajektorien-Berechnung, Admittance-Logik | ❌ | ✅ |
+| `hardware.py` | Motor-Zugriff, State-Management, Unit-Conversion | ❌ | ✅ (mit Mock) |
+| `controller.py` | ROS2 Action Server, State Machine, Control Loop | ✅ | ❌ |
+| `simulation/` | MuJoCo Testbed für Algorithmen | ❌ | ✅ |
+
+**Design-Prinzipien:**
+- **ROS-agnostic Core**: `config`, `admittance`, `hardware` haben keine ROS2-Dependencies
+- **Clear Separation**: Control-Algorithmen (admittance) getrennt von Hardware-Access (hardware)
+- **Testability**: Jedes Modul kann einzeln getestet werden
+- **Reusability**: Simulation nutzt gleiche Algorithmen wie Production-Code
+
+### Import-Beispiele
+
+```python
+# ROS2 Node starten
+from motors.pib_hand.controller import HandController, main
+
+# Algorithmen nutzen (z.B. für Tests)
+from motors.pib_hand import (
+    load_hand_config,
+    calculate_next_reference,
+    apply_admittance_logic,
+)
+
+# Simulation starten
+from motors.pib_hand.simulation.hand_sim import main as sim_main
+```
+
+---
+
 ## Architektur
 
 ### ROS2 Nodes
@@ -207,14 +259,14 @@ grips:
 
 ### Admittance Parameter
 
-**In `hand_core.py`:**
+**In `pib_hand/admittance.py`:**
 
 ```python
 CONTROL_LOOP_RATE_HZ = 50   # Control loop frequency
 ADMITTANCE_GAIN = 1.5       # K_a: Units yielded per mA excess current
 ```
 
-**In `hand_controller.py`:**
+**In `pib_hand/controller.py`:**
 
 ```python
 COMPLIANCE_THRESHOLD = 0.7  # 70% of max_current triggers admittance
@@ -236,38 +288,64 @@ Der `hand_controller` führt für jede Achse folgende Schritte aus:
 
 **1. Initialisierung (beim Action Goal):**
 ```python
-# Für jede Achse (daumen, zeigefinger, ...):
-- Lese current_position vom Motor
-- Setze reference_position = current_position (q_ref)
-- Setze current_cmd_pos = current_position (q_cmd)
-- Setze target_position aus Grip-Config
+# controller.py: _execute_grip_callback()
+# Für jede Achse wird ein AxisState erstellt:
+from pib_hand.hardware import AxisState, get_motor_by_name
+
+motor = get_motor_by_name(axis_config.motor_name)
+current_pos = motor.get_position()
+
+state = AxisState(
+    config=axis_config,
+    motor=motor,
+    start_position=current_pos,
+    target_position=target_pos,
+    reference_position=current_pos,  # q_ref
+    current_cmd_pos=current_pos,     # q_cmd
+    is_finished=False
+)
 ```
 
 **2. Control Loop Tick (50Hz):**
 ```python
-for axis in axes:
+# controller.py: _control_loop_tick()
+from pib_hand.admittance import (
+    calculate_next_reference,
+    apply_admittance_logic,
+    is_target_reached
+)
+
+for axis_name, state in axis_states.items():
     # Schritt 1: Update Reference (ideale Trajektorie)
-    q_ref = calculate_next_reference(q_ref, target, max_speed)
+    state.reference_position = calculate_next_reference(
+        state.reference_position,
+        state.target_position,
+        state.config.max_speed
+    )
     
     # Schritt 2: Messe Strom
-    current_measured = motor.get_current()
+    current_measured = state.motor.get_current()
     
     # Schritt 3: Admittance Logic
-    threshold = max_current * 0.7
-    excess = max(0, current_measured - threshold)
-    q_cmd = q_ref - (1.5 * excess)  # Weicht zurück bei Überstrom
+    threshold = state.config.max_current * COMPLIANCE_THRESHOLD
+    state.current_cmd_pos = apply_admittance_logic(
+        state.reference_position,
+        current_measured,
+        threshold
+    )
     
     # Schritt 4: Sende Position
-    motor.set_position(q_cmd)
+    state.motor.set_position(int(state.current_cmd_pos))
     
     # Schritt 5: Check ob fertig
-    if q_ref erreicht target:
-        axis.is_finished = True
+    if is_target_reached(state.reference_position, state.target_position):
+        state.is_finished = True
 ```
 
 **3. Completion:**
 ```python
-if all axes finished:
+if all(state.is_finished for state in axis_states.values()):
+    grip_state = GripState.COMPLETED
     return Result(success=True, message="Grip completed")
 ```
 
@@ -275,37 +353,54 @@ if all axes finished:
 
 Der Code ist vorbereitet für ML-basierte Schwellenwert-Vorhersage:
 
-**Aktuell (statisch):**
+**Aktuell (statisch) in `pib_hand/controller.py`:**
 ```python
-threshold = max_current * 0.7  # Fixer Schwellenwert
+threshold = state.config.max_current * COMPLIANCE_THRESHOLD  # Fixer Schwellenwert (70%)
 ```
 
-**Zukünftig (FFNN):** 
+**Zukünftig (FFNN) - Integration in `pib_hand/admittance.py` oder als separates Modul:** 
 
 > ![TODO](https://img.shields.io/badge/TODO-red?style=flat-square) **TODO:** Für den Start als Regressionsproblem (FFNN) planen. Später prüfen, ob ein Digital Twin / RL-Ansatz sinnvoller ist. Details und Verantwortliche noch klären.
 
 ```python
-# Predict expected current based on position and velocity
-expected_current = ffnn_model.predict(q_ref, velocity, finger_id)
-threshold = expected_current 
+# In pib_hand/admittance.py oder pib_hand/ml_model.py
+def predict_current_threshold(q_ref: float, velocity: float, finger_id: str) -> float:
+    """Predict expected current based on position and velocity using FFNN."""
+    # FFNN inference hier
+    expected_current = ffnn_model.predict([q_ref, velocity, finger_id])
+    return expected_current
 
-# Only currents above prediction trigger admittance
-excess = max(0, current_measured - threshold)
+# In controller.py
+threshold = predict_current_threshold(
+    state.reference_position, 
+    velocity, 
+    axis_name
+)
+state.current_cmd_pos = apply_admittance_logic(
+    state.reference_position,
+    current_measured,
+    threshold  # Dynamischer Schwellenwert statt statisch
+)
 ```
+
+**Vorteil der modularen Struktur:**
+- FFNN-Integration betrifft primär `admittance.py`
+- `controller.py` muss nur Threshold-Berechnung austauschen
+- Algorithmen bleiben testbar ohne ML-Model
 
 
 ## Integration mit bestehenden Systemen
 
 ### Mit motor_control Node
 
-`hand_controller` greift **direkt** auf `pib_motors.motor` zu, **nicht** über den `ApplyJointTrajectory` Service. Das ermöglicht:
+`pib_hand/controller.py` greift **direkt** auf `pib_motors.motor` zu (via `hardware.get_motor_by_name()`), **nicht** über den `ApplyJointTrajectory` Service. Das ermöglicht:
 - Präzise 50Hz Kontrolle ohne Service-Overhead
 - Direkte Current-Messung für Admittance
 - Keine Interferenz zwischen verschiedenen Motion-Controllern
 
 ### Mit motor_current Node
 
-`motor_current` published weiterhin alle Motorströme auf `/motor_current` Topic (4Hz). Das ist **unabhängig** vom `hand_controller`, der seine eigenen Current-Messungen macht (50Hz).
+`motor_current` published weiterhin alle Motorströme auf `/motor_current` Topic (4Hz). Das ist **unabhängig** vom `hand_controller`, der seine eigenen Current-Messungen macht (50Hz via `motor.get_current()` in `controller._control_loop_tick()`).
 
 
 ### Mit cerebra/rosbridge
@@ -369,19 +464,34 @@ Grip ist **completed** wenn `q_ref` am Ziel ist, auch wenn `q_cmd` durch Admitta
 **Was passiert bei einem Grip-Request:**
 
 1. **Action Goal** wird gesendet mit `grip_name`
-2. **hand_controller** liest Ziel-Positionen aus `hand_config.yaml`
-3. **50Hz Loop** startet für alle 6 Achsen:
-   - Berechne nächsten `q_ref` Schritt
-   - Messe Motor-Strom
-   - Wende Admittance an: `q_cmd = q_ref - K_a * excess_current`
-   - Sende `q_cmd` an Hardware
-4. **Feedback** wird kontinuierlich gesendet (current_axis, progress, currents)
-5. **Result** wird zurückgegeben wenn alle `q_ref` am Ziel
+2. **controller.py** lädt Ziel-Positionen aus `config/hand_config.yaml` via `config.py`
+3. **controller.py** initialisiert `AxisState` für alle 6 Achsen via `hardware.py`
+4. **50Hz Loop** startet (`controller._control_loop_tick()`):
+   - `admittance.calculate_next_reference()` → berechnet nächsten `q_ref` Schritt
+   - `hardware` → misst Motor-Strom
+   - `admittance.apply_admittance_logic()` → berechnet `q_cmd = q_ref - K_a * excess_current`
+   - `hardware` → sendet `q_cmd` an Motor
+   - `admittance.is_target_reached()` → prüft ob `q_ref` am Ziel
+5. **Feedback** wird kontinuierlich gesendet (current_axis, progress, currents)
+6. **Result** wird zurückgegeben wenn alle `q_ref` am Ziel
 
 **Bei Widerstand:**
-- Finger wird "weich" (q_cmd weicht zurück)
-- Trajektorie läuft weiter (q_ref → Ziel)
+- Finger wird "weich" (q_cmd weicht zurück durch `apply_admittance_logic()`)
+- Trajektorie läuft weiter (q_ref → Ziel via `calculate_next_reference()`)
 - Automatische Fortsetzung wenn Widerstand nachlässt
+
+**Module-Interaktion:**
+```
+config.py → lädt YAML
+    ↓
+hardware.py → initialisiert AxisStates mit Motoren
+    ↓
+controller.py → startet 50Hz Loop
+    ↓
+admittance.py → berechnet Trajektorie & Compliance
+    ↓
+hardware.py → sendet Befehle an Tinkerforge
+```
 
 
 ---

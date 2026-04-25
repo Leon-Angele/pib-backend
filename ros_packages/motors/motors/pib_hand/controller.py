@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 """
-Hand Controller Node - Refactored for Admittance Control.
+ROS2 Hand Controller Node - Action Server for Grip Execution.
 
-Provides ExecuteGrip action server for grip control with admittance-based compliance.
-Runs as fourth node in motors package alongside motor_control, motor_current, relay_control.
-
-Uses direct hardware access via pib_motors.motor for precise 50Hz control.
+Provides /hand/execute_grip action server for executing predefined grips
+with admittance-based compliance control at 50Hz.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
 import rclpy
 from ament_index_python.packages import get_package_share_directory
-from pib_motors.motor import Motor, name_to_motors
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
@@ -23,36 +20,40 @@ from sensor_msgs.msg import JointState
 # Import action from datatypes package
 from datatypes.action import ExecuteGrip
 
-# Import shared core utilities
-from motors.hand_core import (
-    AxisConfig,
-    GripState,
+# Import pib_hand modules
+from .config import AxisConfig, load_hand_config
+from .admittance import (
     CONTROL_LOOP_RATE_HZ,
-    POSITION_TOLERANCE,
     calculate_next_reference,
     apply_admittance_logic,
     is_target_reached,
-    load_hand_config,
 )
+from .hardware import AxisState, get_motor_by_name
+
+
+# ============================================================================
+# STATE MACHINE
+# ============================================================================
+
+class GripState(Enum):
+    """State machine for grip execution."""
+    IDLE = "idle"
+    MOVING = "moving"
+    COMPLETED = "completed"
+    ABORTED = "aborted"
 
 
 # ============================================================================
 # CONSTANTS
 # ============================================================================
 
-COMPLIANCE_THRESHOLD = 0.7  # 70% of max_current as basis for admittance start
+COMPLIANCE_THRESHOLD = 0.7
+"""
+Compliance threshold as fraction of max_current.
 
-
-@dataclass
-class AxisState:
-    """Runtime state for a single axis during grip execution with admittance control."""
-    config: AxisConfig
-    motor: Motor
-    start_position: float
-    target_position: float
-    reference_position: float  # Ideal trajectory point (q_ref)
-    current_cmd_pos: float     # Currently commanded position (q_cmd)
-    is_finished: bool          # Trajectory completed?
+Static threshold: 70% of max_current triggers admittance.
+Future FFNN integration will replace this with dynamic prediction.
+"""
 
 
 # ============================================================================
@@ -144,22 +145,6 @@ class HandController(Node):
             raise
 
     # ========================================================================
-    # MOTOR ACCESS (Direct Hardware - like motor_control.py)
-    # ========================================================================
-
-    def _get_motor(self, motor_name: str) -> Optional[Motor]:
-        """
-        Get motor instance by name using pib_motors.motor.
-        
-        Same pattern as motor_control.py - direct hardware access.
-        """
-        motors_list = name_to_motors.get(motor_name, [])
-        if not motors_list:
-            self.get_logger().warn(f"Motor not found: {motor_name}")
-            return None
-        return motors_list[0]
-
-    # ========================================================================
     # ACTION SERVER CALLBACKS
     # ========================================================================
 
@@ -203,15 +188,17 @@ class HandController(Node):
         self.axis_states = {}
         
         for axis_name, axis_config in self.axes_config.items():
-            motor = self._get_motor(axis_config.motor_name)
+            motor = get_motor_by_name(axis_config.motor_name)
             
             if motor is None:
-                self.get_logger().error(f"Cannot access motor for axis: {axis_name}")
-                continue
+                if not self.dev_mode:
+                    self.get_logger().error(f"Cannot access motor for axis: {axis_name}")
+                    continue
+                # In dev mode, we'll handle None motor gracefully
             
             # Get current position from motor
             try:
-                current_pos = float(motor.get_position()) if not self.dev_mode else 0.0
+                current_pos = float(motor.get_position()) if (motor and not self.dev_mode) else 0.0
             except Exception as e:
                 self.get_logger().warn(f"Failed to read position for {axis_name}: {e}")
                 current_pos = 0.0
@@ -220,7 +207,7 @@ class HandController(Node):
             
             self.axis_states[axis_name] = AxisState(
                 config=axis_config,
-                motor=motor,
+                motor=motor,  # type: ignore (may be None in dev mode)
                 start_position=current_pos,
                 target_position=target_pos,
                 reference_position=current_pos,  # q_ref starts at current position
@@ -309,7 +296,9 @@ class HandController(Node):
             
             # 2. Measure real current
             try:
-                measured_current = state.motor.get_current() if not self.dev_mode else 0
+                measured_current = (
+                    state.motor.get_current() if (state.motor and not self.dev_mode) else 0
+                )
             except Exception as e:
                 self.get_logger().warn(f"Failed to read current for {axis_name}: {e}")
                 measured_current = 0
@@ -327,7 +316,7 @@ class HandController(Node):
             
             # 4. Command to hardware
             try:
-                if not self.dev_mode:
+                if state.motor and not self.dev_mode:
                     state.motor.set_position(int(state.current_cmd_pos))
             except Exception as e:
                 self.get_logger().warn(f"Failed to set position for {axis_name}: {e}")
@@ -350,10 +339,11 @@ class HandController(Node):
         if self.current_goal_handle is not None:
             self.current_goal_handle.publish_feedback(feedback)
         
+        # Publish joint states for visualization
         js_msg = JointState()
         js_msg.header.stamp = self.get_clock().now().to_msg()
         for axis_name, state in self.axis_states.items():
-            js_msg.name.append(state.config.motor_name)  # z.B. "index_right_stretch"
+            js_msg.name.append(state.config.motor_name)
             js_msg.position.append(float(state.current_cmd_pos))
         self.joint_state_pub.publish(js_msg)
 
@@ -373,7 +363,7 @@ class HandController(Node):
 
 
 # ============================================================================
-# MAIN
+# MAIN ENTRY POINT
 # ============================================================================
 
 def main(args=None):

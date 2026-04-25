@@ -82,3 +82,36 @@ sqlite3 pib_api/flask/pibdata.db \
 
  siehe auch:
 [Motor Pinout Dokumentation](https://pib-rocks.atlassian.net/wiki/spaces/kb/pages/206602264/Motor+pinout)
+
+
+
+
+8) Testen
+```bash
+docker compose up -d flask-app rosbridge-ws ros-motors
+```
+
+Status prüfen:
+```bash
+sudo systemctl status brickd --no-pager
+ss -ltnp | grep 4223
+```
+Starten:
+```bash
+sudo systemctl start brickd
+```
+UIDs auslesen (Enumerate):
+```bash
+python3 /tmp/enumerate_bricklets.py   # oder das Script aus UID_Ermitteln.md
+```
+
+UID in API setzen (Beispiel Bricklet 3):
+```bash
+curl -X PUT -H "Content-Type: application/json" -d '{"uid":"DEINE_UID"}' http://localhost:5000/bricklet/3
+```
+
+Ros-motors neu starten:
+```bash
+docker compose restart ros-motors
+docker compose logs --tail=200 ros-motors
+```

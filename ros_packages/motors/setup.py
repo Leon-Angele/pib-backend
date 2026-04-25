@@ -27,7 +27,7 @@ setup(
             "motor_control = motors.motor_control:main",
             "motor_current = motors.motor_current:main",
             "relay_control = motors.relay_control:main",
-            "hand_controller = motors.hand_controller:main",
+            "hand_controller = motors.pib_hand.controller:main",
         ],
     },
 )
