@@ -24,10 +24,12 @@ motors/pib_hand/
 ├── admittance.py         # Core admittance control algorithms
 ├── hardware.py           # Tinkerforge motor access & unit conversion
 ├── controller.py         # ROS2 Action Server node
+├── data_logger.py        # Optional: Trajectory logging for FFNN training
 ├── simulation/           # Standalone MuJoCo testbed
 │   ├── hand_sim.py       # Simulation main entry point
 │   └── pib_upper_body/   # URDF models
-└── README.md             # This file
+├── README.md             # This file
+└── DATA_LOGGING.md       # Trajectory logging documentation
 ```
 
 ### Module Responsibilities
@@ -38,6 +40,7 @@ motors/pib_hand/
 | `admittance.py` | Trajektorien-Berechnung, Admittance-Logik | ❌ | ✅ |
 | `hardware.py` | Motor-Zugriff, State-Management, Unit-Conversion | ❌ | ✅ (mit Mock) |
 | `controller.py` | ROS2 Action Server, State Machine, Control Loop | ✅ | ❌ |
+| `data_logger.py` | CSV-Logging für FFNN Training-Daten | ❌ | ✅ |
 | `simulation/` | MuJoCo Testbed für Algorithmen | ❌ | ✅ |
 
 **Design-Prinzipien:**
@@ -140,6 +143,27 @@ docker compose logs --tail=50 ros-motors
 - Hand Controller greift direkt auf `pib_motors.motor` zu
 - Echte Hardware-Bewegungen mit Current-Messung
 
+### 4. Trajectory Logging (optional, für FFNN Training)
+
+**Aktivierung:**
+```python
+# launch/launch.py
+Node(
+    package="motors",
+    executable="hand_controller",
+    parameters=[
+        {"dev": True},
+        {"enable_logging": True},  # Aktiviert CSV-Logging
+        {"log_path": "/data/trajectories"}
+    ],
+)
+```
+
+**Output:**
+- CSV-Dateien pro Grip: `trajectory_SPITZGRIFF_20260425_143022.csv`
+- Format: `timestamp,axis_id,q_cmd,dq_cmd,direction,measured_current`
+- Details: siehe [DATA_LOGGING.md](DATA_LOGGING.md)
+
 ---
 
 ## ROS2 Interface
@@ -187,6 +211,24 @@ docker exec -it multirepo-ros-motors-1 bash -c \
    ros2 action send_goal /hand/execute_grip datatypes/action/ExecuteGrip \
    '{grip_name: \"SPITZGRIFF\"}' --feedback"
 ```
+**Oder auch interkativ im Container:**
+# 1. Einmal in den Container gehen
+
+docker exec -it multirepo-ros-motors-1 bash
+
+# 2. Im Container: ROS2 Environment laden
+cd /app/ros2_ws
+source install/setup.bash
+
+# Jetzt:
+ros2 action send_goal /hand/execute_grip datatypes/action/ExecuteGrip \
+  '{grip_name: "SPITZGRIFF"}' --feedback
+
+# Oder andere Griffe:
+ros2 action send_goal /hand/execute_grip datatypes/action/ExecuteGrip \
+  '{grip_name: "OPEN"}' --feedback
+
+
 
 **Feedback während Ausführung:**
 ```
