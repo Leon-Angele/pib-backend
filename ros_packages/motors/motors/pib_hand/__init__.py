@@ -54,6 +54,14 @@ from .controller import (
     COMPLIANCE_THRESHOLD,
 )
 
+# Data Logging (optional, for FFNN training)
+from .data_logger import (
+    TrajectoryLogger,
+    VelocityCalculator,
+    TrajectoryDataPoint,
+    calculate_direction,
+)
+
 __all__ = [
     # Config
     "AxisConfig",
@@ -76,4 +84,9 @@ __all__ = [
     "HandController",
     "GripState",
     "COMPLIANCE_THRESHOLD",
+    # Data Logger
+    "TrajectoryLogger",
+    "VelocityCalculator",
+    "TrajectoryDataPoint",
+    "calculate_direction",
 ]

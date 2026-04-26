@@ -7,6 +7,7 @@ with admittance-based compliance control at 50Hz.
 """
 from __future__ import annotations
 
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
@@ -29,6 +30,11 @@ from .admittance import (
     is_target_reached,
 )
 from .hardware import AxisState, get_motor_by_name
+from .data_logger import (
+    TrajectoryLogger,
+    VelocityCalculator,
+    calculate_direction,
+)
 
 
 # ============================================================================
@@ -80,9 +86,13 @@ class HandController(Node):
         # Parameters
         self.declare_parameter("hand_namespace", "hand")
         self.declare_parameter("dev", False)
+        self.declare_parameter("enable_logging", False)
+        self.declare_parameter("log_path", "/tmp/pib_hand_trajectories")
         
         self.hand_namespace = self.get_parameter("hand_namespace").value
         self.dev_mode = self.get_parameter("dev").value
+        self.enable_logging = self.get_parameter("enable_logging").value
+        self.log_path = self.get_parameter("log_path").value
         
         # Load configuration
         self.axes_config: Dict[str, AxisConfig] = {}
@@ -93,6 +103,16 @@ class HandController(Node):
         self.grip_state = GripState.IDLE
         self.axis_states: Dict[str, AxisState] = {}
         self.current_goal_handle = None
+        
+        # Optional trajectory logging for FFNN training
+        self.trajectory_logger: Optional[TrajectoryLogger] = None
+        self.velocity_calculator: Optional[VelocityCalculator] = None
+        if self.enable_logging:
+            self.trajectory_logger = TrajectoryLogger(self.log_path)
+            self.velocity_calculator = VelocityCalculator()
+            self.get_logger().info(
+                f"Trajectory logging ENABLED → {self.log_path}"
+            )
         
         # Action Server
         self._action_server = ActionServer(
@@ -120,6 +140,9 @@ class HandController(Node):
         
         if self.dev_mode:
             self.get_logger().warn("Running in DEV mode - motor access may be limited")
+        
+        if not self.enable_logging:
+            self.get_logger().info("Trajectory logging DISABLED")
 
     # ========================================================================
     # CONFIGURATION
@@ -219,6 +242,12 @@ class HandController(Node):
                 f"  {axis_name}: {current_pos:.0f} → {target_pos:.0f}"
             )
         
+        # Start trajectory logging if enabled
+        if self.trajectory_logger:
+            log_file = self.trajectory_logger.start_recording(grip_name)
+            self.get_logger().info(f"Recording trajectory → {log_file.name}")
+            self.velocity_calculator.reset()  # type: ignore
+        
         # Start movement
         self.grip_state = GripState.MOVING
         
@@ -237,6 +266,11 @@ class HandController(Node):
                 return result
             
             rclpy.spin_once(self, timeout_sec=0.1)
+        
+        # Stop trajectory logging if enabled
+        if self.trajectory_logger:
+            self.trajectory_logger.stop_recording()
+            self.get_logger().info("Trajectory recording stopped")
         
         # Return result
         result = ExecuteGrip.Result()
@@ -313,6 +347,26 @@ class HandController(Node):
                 measured_current,
                 static_threshold,
             )
+            
+            # 3.5. Log trajectory data if enabled
+            if self.trajectory_logger and self.velocity_calculator:
+                current_time = time.time()
+                dq_cmd = self.velocity_calculator.calculate(
+                    axis_name,
+                    state.current_cmd_pos,
+                    current_time
+                )
+                direction = calculate_direction(
+                    state.target_position,
+                    state.current_cmd_pos
+                )
+                self.trajectory_logger.log_point(
+                    axis_id=axis_name,
+                    q_cmd=state.current_cmd_pos,
+                    dq_cmd=dq_cmd,
+                    direction=direction,
+                    measured_current=measured_current
+                )
             
             # 4. Command to hardware
             try:
